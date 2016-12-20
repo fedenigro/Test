@@ -2,7 +2,7 @@
 file=/tmp/supervisor_comet.sock ; path to your socket file
 
 ;[inet_http_server]
-;port = 127.0.0.1:9001
+;port = 127.0.0.1:900
 
 [supervisorctl]
 serverurl=unix:///tmp/supervisor_comet.sock ; use a unix:// URL for a unix socket
