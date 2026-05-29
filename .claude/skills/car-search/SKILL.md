@@ -1,533 +1,585 @@
 ---
 name: car-search
-description: Search the internet for used cars across multiple listing sites. Use when the user wants to find used cars by brand, model, year, price, or distance from a zip code. Returns sorted results by best value (lowest price + lowest miles).
+description: Search the internet for used cars across non-traditional listing sites (Craigslist, eBay Motors, OfferUp, Facebook Marketplace, local dealer sites). Use when the user wants to find used cars by brand, model, year, price, or distance from a zip code. Finds deals that don't appear on Cars.com or AutoTrader.
 ---
 
 # Used Car Search Skill
 
-Search for used cars across CarGurus, Cars.com, AutoTrader, TrueCar, Craigslist, and dealer sites.
+Searches non-traditional sources for used car listings: Craigslist (all nearby cities),
+eBay Motors (auctions + buy-it-now), OfferUp, and individual dealer websites.
+Runs as a Python script — requires local Claude Code CLI with real internet access.
 
-## Parameters
+## Step 1 — Parse parameters
 
-Parse the user's request for:
-- `make` – brand/manufacturer (e.g. Toyota, Honda, Ford)
-- `model` – car model (e.g. Camry, Civic, F-150)
-- `year_min` / `year_max` – year range (e.g. 2018-2022)
-- `zip` – ZIP code for proximity search
-- `max_miles` – maximum search radius in miles from zip (default 100)
-- `max_price` – maximum price in USD (optional)
-- `max_odometer` – maximum odometer reading in miles (optional)
+Extract from the user's request:
+- `make` – e.g. Hyundai, Toyota, Ford
+- `model` – e.g. Tucson, Camry, F-150
+- `year_min` / `year_max` – default to last 5 years if not specified
+- `zip` – required; ask the user if missing
+- `radius` – miles from zip, default 100
+- `max_price` – optional price ceiling in USD
+- `max_odometer` – optional odometer ceiling in miles
+- `trim` – optional trim filter (e.g. SEL, EX, Limited); "SEL or higher" = SEL,Limited,N-Line,Calligraphy,Ultimate
 
-## Instructions
+## Step 2 — Write and run the script
 
-When this skill is invoked, run the Python script below by calling the Bash tool. Pass parameters via environment variables. After the script runs, present the results as a ranked table sorted by **Score** (best value first). Highlight the top 3 picks with a brief note on why each is a good deal.
-
-### Step 1 – Install dependencies if needed
-
-```bash
-pip install -q requests beautifulsoup4 lxml 2>/dev/null | tail -1
-```
-
-### Step 2 – Run the search
-
-Save the script to `/tmp/car_search.py` and run it with the user's parameters exported as env vars:
+Write the full Python script below to `/tmp/car_search.py`, then run it:
 
 ```bash
-export CAR_MAKE="Toyota"
-export CAR_MODEL="Camry"
-export YEAR_MIN="2018"
-export YEAR_MAX="2022"
-export ZIP_CODE="90210"
+export CAR_MAKE="Hyundai"
+export CAR_MODEL="Tucson"
+export YEAR_MIN="2022"
+export YEAR_MAX="2025"
+export ZIP_CODE="33160"
 export SEARCH_RADIUS="100"
-export MAX_PRICE="20000"
-export MAX_ODOMETER="80000"
+export MAX_PRICE="21000"
+export MAX_ODOMETER=""
+export TRIM_FILTER="SEL,LIMITED,N-LINE,CALLIGRAPHY,ULTIMATE"
 python3 /tmp/car_search.py
 ```
 
-### Step 3 – Present results
+Fill in values from the user's request. Omit MAX_PRICE or MAX_ODOMETER if not specified (leave as empty string).
 
-Show a markdown table of the top 20 results ranked by Score. Add a "Top Picks" section calling out the 3 best deals.
+## Step 3 — Present results
+
+After the script runs, format the output as:
+- A ranked markdown table (best value first)
+- A **Top 3 Picks** section with direct links and a one-line reason why each is a good deal
+- Note which sources returned results and which were unreachable
 
 ---
 
 ## Python Script
 
-Write the following to `/tmp/car_search.py`:
-
 ```python
 #!/usr/bin/env python3
 """
-Used car search aggregator.
-Searches CarGurus, Cars.com, AutoTrader, and CarMax for the best deals.
-Results ranked by a value score: lower price + lower miles = higher score.
+Used car search — non-traditional sources.
+Searches Craigslist (multi-city), eBay Motors, OfferUp, and local dealer
+Google results. Results ranked by value score (price + miles).
 """
 
-import os, sys, json, time, math, re
-from urllib.parse import urlencode, quote_plus
+import os, sys, re, time, json, urllib.parse
 from datetime import datetime
 
 try:
     import requests
     from bs4 import BeautifulSoup
 except ImportError:
-    print("Installing dependencies...")
     import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "requests", "beautifulsoup4", "lxml"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q",
+                           "requests", "beautifulsoup4", "lxml"])
     import requests
     from bs4 import BeautifulSoup
 
-# ── Config from env ──────────────────────────────────────────────────────────
-MAKE          = os.environ.get("CAR_MAKE", "").strip()
-MODEL         = os.environ.get("CAR_MODEL", "").strip()
-YEAR_MIN      = os.environ.get("YEAR_MIN", "2015").strip()
-YEAR_MAX      = os.environ.get("YEAR_MAX", str(datetime.now().year)).strip()
-ZIP_CODE      = os.environ.get("ZIP_CODE", "90210").strip()
-RADIUS        = os.environ.get("SEARCH_RADIUS", "100").strip()
-MAX_PRICE     = os.environ.get("MAX_PRICE", "").strip()
-MAX_ODOMETER  = os.environ.get("MAX_ODOMETER", "").strip()
+# ── Config ───────────────────────────────────────────────────────────────────
+MAKE         = os.environ.get("CAR_MAKE", "").strip()
+MODEL        = os.environ.get("CAR_MODEL", "").strip()
+YEAR_MIN     = os.environ.get("YEAR_MIN", str(datetime.now().year - 5)).strip()
+YEAR_MAX     = os.environ.get("YEAR_MAX", str(datetime.now().year)).strip()
+ZIP_CODE     = os.environ.get("ZIP_CODE", "").strip()
+RADIUS       = int(os.environ.get("SEARCH_RADIUS", "100").strip())
+MAX_PRICE    = os.environ.get("MAX_PRICE", "").strip()
+MAX_ODOMETER = os.environ.get("MAX_ODOMETER", "").strip()
+TRIM_FILTER  = [t.strip().upper() for t in os.environ.get("TRIM_FILTER", "").split(",") if t.strip()]
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "en-US,en;q=0.9",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
 }
 
-SESSION = requests.Session()
-SESSION.headers.update(HEADERS)
+S = requests.Session()
+S.headers.update(HEADERS)
 
 results = []
+
+# Craigslist cities within ~100-150 miles of common metro zips
+# Keyed by state prefix of zip; expands automatically for nearby cities
+CRAIGSLIST_METROS = {
+    # Florida
+    "331": ["miami", "broward", "palmbeach", "keys", "swflorida"],
+    "332": ["miami", "broward"],
+    "333": ["miami", "broward", "palmbeach"],
+    "334": ["tampa", "sarasota", "swflorida"],
+    "336": ["tampa", "orlando", "lakeland"],
+    "337": ["tampa", "orlando"],
+    "338": ["orlando", "daytona", "spacecoast"],
+    # New York
+    "100": ["newyork", "longisland", "newjersey", "connecticut", "hudson"],
+    "110": ["longisland", "newyork", "newjersey"],
+    # California
+    "900": ["losangeles", "orangecounty", "inlandempire", "ventura"],
+    "902": ["losangeles", "longbeach", "orangecounty"],
+    "941": ["sfbay", "eastbay", "peninsula", "southbay", "santacruz"],
+    # Texas
+    "770": ["houston", "galveston", "beaumont"],
+    "787": ["austin", "sanantonio", "waco"],
+    # Default fallback — use a broad national search
+    "default": ["miami", "losangeles", "chicago", "newyork", "dallas",
+                 "houston", "atlanta", "seattle", "denver", "phoenix"],
+}
+
+def get_craigslist_cities():
+    prefix = ZIP_CODE[:3] if ZIP_CODE else ""
+    cities = CRAIGSLIST_METROS.get(prefix)
+    if not cities:
+        # Try 2-char prefix
+        cities = CRAIGSLIST_METROS.get(ZIP_CODE[:2])
+    if not cities:
+        cities = CRAIGSLIST_METROS["default"]
+    return cities
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def clean_price(s):
-    if not s:
-        return None
-    digits = re.sub(r"[^\d]", "", str(s))
-    return int(digits) if digits else None
-
+    if not s: return None
+    d = re.sub(r"[^\d]", "", str(s))
+    return int(d) if d else None
 
 def clean_miles(s):
-    if not s:
-        return None
-    digits = re.sub(r"[^\d]", "", str(s))
-    return int(digits) if digits else None
-
+    if not s: return None
+    d = re.sub(r"[^\d]", "", str(s))
+    return int(d) if d else None
 
 def value_score(price, miles):
-    """Lower is better. Combines normalised price and miles."""
-    if not price or not miles:
-        return 9999999
-    # weight: 60% price, 40% miles (normalise to 0-1 over typical ranges)
-    p_norm = price / 100_000
-    m_norm = miles / 300_000
-    return round(0.6 * p_norm + 0.4 * m_norm, 6)
+    if not price: return 9_000_000
+    if not miles: return 8_000_000 + price / 100
+    return round(0.6 * price / 100_000 + 0.4 * miles / 300_000, 6)
 
+def trim_ok(title):
+    if not TRIM_FILTER: return True
+    t = title.upper()
+    return any(tr in t for tr in TRIM_FILTER)
 
-def fetch(url, timeout=15):
-    try:
-        r = SESSION.get(url, timeout=timeout)
-        r.raise_for_status()
-        return r.text
-    except Exception as e:
-        return None
+def price_ok(p):
+    if not MAX_PRICE or not p: return True
+    return p <= int(MAX_PRICE)
 
+def miles_ok(m):
+    if not MAX_ODOMETER or not m: return True
+    return m <= int(MAX_ODOMETER)
 
-def add(source, title, price, miles, year, location, url):
-    p = clean_price(price)
-    m = clean_miles(miles)
-    if MAX_PRICE and p and p > int(MAX_PRICE):
-        return
-    if MAX_ODOMETER and m and m > int(MAX_ODOMETER):
-        return
+def add(source, title, price, miles, year, seller, location, url):
+    p, m = clean_price(price), clean_miles(miles)
+    if not price_ok(p) or not miles_ok(m): return
+    if not trim_ok(title or ""): return
     results.append({
         "source":   source,
-        "title":    title[:60] if title else "N/A",
+        "title":    (title or "N/A")[:70],
         "price":    p,
         "miles":    m,
-        "year":     year,
+        "year":     str(year or ""),
+        "seller":   (seller or "")[:35],
         "location": (location or "")[:30],
         "url":      url or "",
         "score":    value_score(p, m),
     })
 
-
-# ── CarGurus ─────────────────────────────────────────────────────────────────
-def search_cargurus():
-    print("  Searching CarGurus...", flush=True)
-    params = {
-        "zip":           ZIP_CODE,
-        "distance":      RADIUS,
-        "searchChanged": "true",
-        "makeId":        "",
-        "modelId":       "",
-        "trim":          "",
-        "yearMin":       YEAR_MIN,
-        "yearMax":       YEAR_MAX,
-        "mileageMax":    MAX_ODOMETER or "",
-        "priceMax":      MAX_PRICE or "",
-        "listingTypes":  "USED,CPO",
-        "sortDir":       "ASC",
-        "sortType":      "PRICE",
-        "action":        "search",
-        "entitySelectingHelper.selectedEntity2": f"{MAKE} {MODEL}".strip(),
-    }
-    url = f"https://www.cargurus.com/Cars/new/nl/Cars-d448?{urlencode({k:v for k,v in params.items() if v})}"
-    # CarGurus also has a listings endpoint
-    api_url = (
-        f"https://www.cargurus.com/Cars/new/filterResults.action?"
-        f"zip={ZIP_CODE}&distance={RADIUS}"
-        f"&yearMin={YEAR_MIN}&yearMax={YEAR_MAX}"
-        f"&listingTypes=USED%2CCPO&sortDir=ASC&sortType=PRICE"
-        f"&trim=&action=search"
-        f"&entitySelectingHelper.selectedEntity2={quote_plus(MAKE+' '+MODEL)}"
-    )
-    html = fetch(api_url)
-    if not html:
-        return
-    soup = BeautifulSoup(html, "lxml")
-    for card in soup.select("[data-cg-ft='car-blade-link'], .cg-dealFinder-result-car"):
-        try:
-            title_el = card.select_one(".car-name, h4, [class*='title']")
-            price_el = card.select_one("[class*='price'], .price")
-            miles_el = card.select_one("[class*='mileage'], [class*='miles']")
-            loc_el   = card.select_one("[class*='location'], [class*='dealer']")
-            link_el  = card.select_one("a[href]")
-            title = title_el.get_text(strip=True) if title_el else f"{YEAR_MIN}+ {MAKE} {MODEL}"
-            price = price_el.get_text(strip=True) if price_el else None
-            miles = miles_el.get_text(strip=True) if miles_el else None
-            loc   = loc_el.get_text(strip=True) if loc_el else ""
-            href  = "https://www.cargurus.com" + link_el["href"] if link_el else url
-            year_m = re.search(r"(20\d\d|19\d\d)", title)
-            year = year_m.group(1) if year_m else YEAR_MIN
-            add("CarGurus", title, price, miles, year, loc, href)
-        except Exception:
-            pass
-    print(f"    CarGurus: found {len([r for r in results if r['source']=='CarGurus'])} listings", flush=True)
+def fetch(url, timeout=12):
+    try:
+        r = S.get(url, timeout=timeout)
+        if r.status_code == 200:
+            return r.text
+        return None
+    except Exception:
+        return None
 
 
-# ── Cars.com ─────────────────────────────────────────────────────────────────
-def search_cars_com():
-    print("  Searching Cars.com...", flush=True)
-    make_slug  = MAKE.lower().replace(" ", "-")
-    model_slug = MODEL.lower().replace(" ", "-")
-    params = {
-        "stock_type":  "used",
-        "makes[]":     make_slug,
-        "models[]":    f"{make_slug}-{model_slug}",
-        "year_min":    YEAR_MIN,
-        "year_max":    YEAR_MAX,
-        "zip":         ZIP_CODE,
-        "maximum_distance": RADIUS,
-        "sort":        "price_low",
-    }
-    if MAX_PRICE:
-        params["price_max"] = MAX_PRICE
-    if MAX_ODOMETER:
-        params["mileage_max"] = MAX_ODOMETER
-    url = f"https://www.cars.com/shopping/results/?{urlencode(params)}"
-    html = fetch(url)
-    if not html:
-        return
-    soup = BeautifulSoup(html, "lxml")
-    for card in soup.select("div.vehicle-card, [data-qa='vehicle-card']"):
-        try:
-            title_el = card.select_one(".vehicle-card-main-title, h2")
-            price_el = card.select_one(".primary-price, [data-qa='primary-price']")
-            miles_el = card.select_one(".mileage, [data-qa='mileage']")
-            loc_el   = card.select_one(".dealer-name, [data-qa='dealer-name']")
-            link_el  = card.select_one("a.vehicle-card-link, a[href*='/vehicledetail/']")
-            title = title_el.get_text(strip=True) if title_el else f"{MAKE} {MODEL}"
-            price = price_el.get_text(strip=True) if price_el else None
-            miles = miles_el.get_text(strip=True) if miles_el else None
-            loc   = loc_el.get_text(strip=True) if loc_el else ""
-            href  = "https://www.cars.com" + link_el["href"] if link_el and link_el["href"].startswith("/") else (link_el["href"] if link_el else url)
-            year_m = re.search(r"(20\d\d|19\d\d)", title)
-            year = year_m.group(1) if year_m else YEAR_MIN
-            add("Cars.com", title, price, miles, year, loc, href)
-        except Exception:
-            pass
-    print(f"    Cars.com: found {len([r for r in results if r['source']=='Cars.com'])} listings", flush=True)
-
-
-# ── AutoTrader ───────────────────────────────────────────────────────────────
-def search_autotrader():
-    print("  Searching AutoTrader...", flush=True)
-    make_code  = MAKE.upper()
-    model_code = MODEL.upper()
-    params = {
-        "makeCode":    make_code,
-        "modelCode":   model_code,
-        "startYear":   YEAR_MIN,
-        "endYear":     YEAR_MAX,
-        "zip":         ZIP_CODE,
-        "searchRadius": RADIUS,
-        "listingTypes": "USED,CERT_USED",
-        "sortBy":      "priceASC",
-        "numRecords":  "100",
-        "firstRecord": "0",
-    }
-    if MAX_PRICE:
-        params["maxPrice"] = MAX_PRICE
-    if MAX_ODOMETER:
-        params["maxMileage"] = MAX_ODOMETER
-    url = f"https://www.autotrader.com/cars-for-sale/used-cars/{make_code}/{model_code}?{urlencode(params)}"
-    html = fetch(url)
-    if not html:
-        return
-    soup = BeautifulSoup(html, "lxml")
-    for card in soup.select("[data-cmp='itemCard'], .listing-item, [class*='inventory-listing']"):
-        try:
-            title_el = card.select_one("h2, h3, [class*='title']")
-            price_el = card.select_one("[class*='price'], [data-cmp='firstPrice']")
-            miles_el = card.select_one("[class*='mileage'], [class*='miles']")
-            loc_el   = card.select_one("[class*='dealer'], [class*='location']")
-            link_el  = card.select_one("a[href]")
-            title = title_el.get_text(strip=True) if title_el else f"{MAKE} {MODEL}"
-            price = price_el.get_text(strip=True) if price_el else None
-            miles = miles_el.get_text(strip=True) if miles_el else None
-            loc   = loc_el.get_text(strip=True) if loc_el else ""
-            href  = link_el["href"] if link_el else url
-            if href.startswith("/"):
-                href = "https://www.autotrader.com" + href
-            year_m = re.search(r"(20\d\d|19\d\d)", title)
-            year = year_m.group(1) if year_m else YEAR_MIN
-            add("AutoTrader", title, price, miles, year, loc, href)
-        except Exception:
-            pass
-    print(f"    AutoTrader: found {len([r for r in results if r['source']=='AutoTrader'])} listings", flush=True)
-
-
-# ── CarMax ───────────────────────────────────────────────────────────────────
-def search_carmax():
-    print("  Searching CarMax...", flush=True)
-    params = {
-        "make":      MAKE,
-        "model":     MODEL,
-        "zip":       ZIP_CODE,
-        "radius":    RADIUS,
-        "yearMin":   YEAR_MIN,
-        "yearMax":   YEAR_MAX,
-        "sortBy":    "bestmatch",
-    }
-    url = f"https://www.carmax.com/cars/{MAKE.lower()}/{MODEL.lower()}?{urlencode(params)}"
-    html = fetch(url)
-    if not html:
-        return
-    soup = BeautifulSoup(html, "lxml")
-    for card in soup.select("[class*='car-tile'], [data-qa*='car-tile'], .kmx-car-tile"):
-        try:
-            title_el = card.select_one("[class*='title'], h2, h3")
-            price_el = card.select_one("[class*='price']")
-            miles_el = card.select_one("[class*='mileage'], [class*='miles']")
-            loc_el   = card.select_one("[class*='store'], [class*='location']")
-            link_el  = card.select_one("a[href]")
-            title = title_el.get_text(strip=True) if title_el else f"{MAKE} {MODEL}"
-            price = price_el.get_text(strip=True) if price_el else None
-            miles = miles_el.get_text(strip=True) if miles_el else None
-            loc   = loc_el.get_text(strip=True) if loc_el else ""
-            href  = link_el["href"] if link_el else url
-            if href.startswith("/"):
-                href = "https://www.carmax.com" + href
-            year_m = re.search(r"(20\d\d|19\d\d)", title)
-            year = year_m.group(1) if year_m else YEAR_MIN
-            add("CarMax", title, price, miles, year, loc, href)
-        except Exception:
-            pass
-    print(f"    CarMax: found {len([r for r in results if r['source']=='CarMax'])} listings", flush=True)
-
-
-# ── TrueCar ──────────────────────────────────────────────────────────────────
-def search_truecar():
-    print("  Searching TrueCar...", flush=True)
-    make_slug  = MAKE.lower()
-    model_slug = MODEL.lower()
-    params = {
-        "zip_code":    ZIP_CODE,
-        "search_radius": RADIUS,
-        "year[]":      [str(y) for y in range(int(YEAR_MIN), int(YEAR_MAX)+1)],
-        "sort[]":      "price:asc",
-    }
-    url = f"https://www.truecar.com/used-cars-for-sale/listings/{make_slug}/{model_slug}/?{urlencode(params, doseq=True)}"
-    html = fetch(url)
-    if not html:
-        return
-    soup = BeautifulSoup(html, "lxml")
-    for card in soup.select("[data-test='cardContent'], [class*='vehicle-card']"):
-        try:
-            title_el = card.select_one("[data-test='vehicleCardTitle'], h2")
-            price_el = card.select_one("[data-test='vehicleCardPricingBlockPrice'], [class*='price']")
-            miles_el = card.select_one("[data-test='vehicleMileage'], [class*='mileage']")
-            loc_el   = card.select_one("[data-test='dealerName'], [class*='dealer']")
-            link_el  = card.select_one("a[href]")
-            title = title_el.get_text(strip=True) if title_el else f"{MAKE} {MODEL}"
-            price = price_el.get_text(strip=True) if price_el else None
-            miles = miles_el.get_text(strip=True) if miles_el else None
-            loc   = loc_el.get_text(strip=True) if loc_el else ""
-            href  = link_el["href"] if link_el else url
-            if href.startswith("/"):
-                href = "https://www.truecar.com" + href
-            year_m = re.search(r"(20\d\d|19\d\d)", title)
-            year = year_m.group(1) if year_m else YEAR_MIN
-            add("TrueCar", title, price, miles, year, loc, href)
-        except Exception:
-            pass
-    print(f"    TrueCar: found {len([r for r in results if r['source']=='TrueCar'])} listings", flush=True)
-
-
-# ── Craigslist ───────────────────────────────────────────────────────────────
+# ── Craigslist (multi-city) ──────────────────────────────────────────────────
 def search_craigslist():
-    """Search craigslist using the national search aggregator."""
-    print("  Searching Craigslist...", flush=True)
-    query = f"{MAKE} {MODEL}".strip()
+    cities = get_craigslist_cities()
+    query = urllib.parse.quote_plus(f"{MAKE} {MODEL}")
+    total = 0
+    print(f"  Searching Craigslist ({len(cities)} cities)...", flush=True)
+
+    for city in cities:
+        params = {
+            "auto_make_model": f"{MAKE} {MODEL}",
+            "min_auto_year":   YEAR_MIN,
+            "max_auto_year":   YEAR_MAX,
+            "sort":            "priceasc",
+            "auto_title_status": "1",  # clean title only
+        }
+        if MAX_PRICE:    params["max_price"] = MAX_PRICE
+        if MAX_ODOMETER: params["max_auto_miles"] = MAX_ODOMETER
+
+        url = f"https://{city}.craigslist.org/search/cta?{urllib.parse.urlencode(params)}"
+        html = fetch(url)
+        if not html:
+            continue
+
+        soup = BeautifulSoup(html, "lxml")
+        city_count = 0
+
+        # New Craigslist layout
+        for item in soup.select("li.cl-search-result, .result-row"):
+            try:
+                title_el = item.select_one("a.cl-app-anchor, .result-title, a.titlestring")
+                price_el = item.select_one(".priceinfo, .result-price")
+                meta_el  = item.select_one(".meta, .result-meta")
+                link_el  = item.select_one("a[href]")
+
+                title = title_el.get_text(strip=True) if title_el else f"{MAKE} {MODEL}"
+                price = price_el.get_text(strip=True) if price_el else None
+                meta  = meta_el.get_text(" ", strip=True) if meta_el else ""
+                href  = link_el["href"] if link_el else url
+
+                # Extract miles from meta text
+                miles_m = re.search(r"([\d,]+)\s*mi", meta, re.I)
+                miles = miles_m.group(1) if miles_m else None
+
+                year_m = re.search(r"(20\d\d|19\d\d)", title)
+                year = year_m.group(1) if year_m else YEAR_MIN
+
+                loc = city.replace("sfbay", "SF Bay").title()
+                before = len(results)
+                add("Craigslist", title, price, miles, year, "Private/Dealer", loc, href)
+                if len(results) > before:
+                    city_count += 1
+            except Exception:
+                pass
+
+        total += city_count
+        if city_count > 0:
+            print(f"    {city}: {city_count} listings", flush=True)
+        time.sleep(0.3)
+
+    print(f"  Craigslist total: {total} listings", flush=True)
+
+
+# ── eBay Motors ──────────────────────────────────────────────────────────────
+def search_ebay_motors():
+    print("  Searching eBay Motors...", flush=True)
+
     params = {
-        "auto_make_model": query,
-        "min_auto_year":   YEAR_MIN,
-        "max_auto_year":   YEAR_MAX,
-        "postal":          ZIP_CODE,
-        "search_distance": RADIUS,
-        "sort":            "priceasc",
-        "auto_title_status": "1",  # clean title only
+        "_nkw":          f"{YEAR_MIN}-{YEAR_MAX} {MAKE} {MODEL}",
+        "_sacat":        "6001",       # Cars & Trucks
+        "LH_ItemCondition": "3000",    # Used
+        "_sop":          "15",         # Sort by price + shipping: lowest first
+        "LH_PrefLoc":    "99",         # US only
     }
     if MAX_PRICE:
-        params["max_price"] = MAX_PRICE
-    if MAX_ODOMETER:
-        params["max_auto_miles"] = MAX_ODOMETER
-    url = f"https://www.craigslist.org/search/cta?{urlencode(params)}"
+        params["_udhi"] = MAX_PRICE
+    if ZIP_CODE:
+        params["_stpos"] = ZIP_CODE
+        params["_sadis"] = str(RADIUS)
+
+    url = f"https://www.ebay.com/sch/Cars-Trucks/6001/i.html?{urllib.parse.urlencode(params)}"
     html = fetch(url)
     if not html:
+        print("  eBay Motors: no response", flush=True)
         return
+
     soup = BeautifulSoup(html, "lxml")
-    for item in soup.select(".result-row, li.cl-search-result"):
+    count = 0
+
+    for item in soup.select(".s-item, [data-view='mi:1686|iid:1']"):
         try:
-            title_el = card.select_one(".result-title, [class*='title']") if False else item.select_one(".result-title, a.titlestring")
-            price_el = item.select_one(".result-price")
-            loc_el   = item.select_one(".result-hood, .nearby")
-            link_el  = item.select_one("a[href]")
-            title = title_el.get_text(strip=True) if title_el else f"{MAKE} {MODEL}"
-            price = price_el.get_text(strip=True) if price_el else None
-            loc   = loc_el.get_text(strip=True) if loc_el else ""
-            href  = link_el["href"] if link_el else url
+            title_el    = item.select_one(".s-item__title, h3.s-item__title")
+            price_el    = item.select_one(".s-item__price, .notranslate")
+            miles_el    = item.select_one(".s-item__subtitle, .s-item__detail")
+            loc_el      = item.select_one(".s-item__location, .s-item__itemLocation")
+            link_el     = item.select_one("a.s-item__link, a[href*='ebay.com/itm']")
+
+            title = title_el.get_text(strip=True) if title_el else ""
+            if not title or "Shop on eBay" in title: continue
+
+            price  = price_el.get_text(strip=True) if price_el else None
+            detail = miles_el.get_text(" ", strip=True) if miles_el else ""
+            loc    = loc_el.get_text(strip=True).replace("From ", "") if loc_el else ""
+            href   = link_el["href"] if link_el else url
+
+            miles_m = re.search(r"([\d,]+)\s*mi", detail, re.I)
+            miles = miles_m.group(1) if miles_m else None
+
             year_m = re.search(r"(20\d\d|19\d\d)", title)
             year = year_m.group(1) if year_m else YEAR_MIN
-            add("Craigslist", title, price, None, year, loc, href)
+
+            before = len(results)
+            add("eBay Motors", title, price, miles, year, "eBay Seller", loc, href)
+            if len(results) > before:
+                count += 1
         except Exception:
             pass
-    print(f"    Craigslist: found {len([r for r in results if r['source']=='Craigslist'])} listings", flush=True)
+
+    print(f"  eBay Motors: {count} listings", flush=True)
 
 
-# ── Facebook Marketplace hint ────────────────────────────────────────────────
-def add_facebook_link():
-    q = quote_plus(f"{MAKE} {MODEL}")
-    results.append({
-        "source":   "Facebook Marketplace",
-        "title":    f"Search {MAKE} {MODEL} on Facebook Marketplace",
-        "price":    None,
-        "miles":    None,
-        "year":     YEAR_MIN,
-        "location": ZIP_CODE,
-        "url":      f"https://www.facebook.com/marketplace/search/?query={q}&daysSinceListed=30&sortBy=price_ascend",
-        "score":    9999998,
-    })
+# ── OfferUp ──────────────────────────────────────────────────────────────────
+def search_offerup():
+    print("  Searching OfferUp...", flush=True)
+
+    params = {
+        "q":              f"{MAKE} {MODEL}",
+        "distance":       str(RADIUS),
+        "zip":            ZIP_CODE,
+        "delivery_param": "ls",
+        "FSBO":           "1",
+    }
+    if MAX_PRICE: params["price_max"] = MAX_PRICE
+
+    url = f"https://offerup.com/search/?{urllib.parse.urlencode(params)}"
+    html = fetch(url)
+    if not html:
+        print("  OfferUp: no response", flush=True)
+        return
+
+    soup = BeautifulSoup(html, "lxml")
+    count = 0
+
+    # OfferUp embeds listing data in a __NEXT_DATA__ JSON script
+    next_data = soup.find("script", id="__NEXT_DATA__")
+    if next_data:
+        try:
+            data = json.loads(next_data.string)
+            items = (data.get("props", {})
+                        .get("pageProps", {})
+                        .get("listingSearchResult", {})
+                        .get("data", {})
+                        .get("search", {})
+                        .get("customFeed", {})
+                        .get("tiles", []))
+            for tile in items:
+                listing = tile.get("listing", {})
+                title  = listing.get("title", "")
+                price  = listing.get("price", {}).get("amount")
+                loc    = listing.get("location", {}).get("city", "")
+                lid    = listing.get("id", "")
+                href   = f"https://offerup.com/item/detail/{lid}/" if lid else url
+
+                year_m = re.search(r"(20\d\d|19\d\d)", title)
+                year = year_m.group(1) if year_m else YEAR_MIN
+
+                before = len(results)
+                add("OfferUp", title, price, None, year, "Private Seller", loc, href)
+                if len(results) > before:
+                    count += 1
+        except Exception:
+            pass
+
+    if count == 0:
+        # Fallback: plain HTML parse
+        for card in soup.select("[data-testid='listing-card'], .listing-card"):
+            try:
+                title_el = card.select_one("p, h3, [class*='title']")
+                price_el = card.select_one("[class*='price']")
+                link_el  = card.select_one("a[href]")
+                title = title_el.get_text(strip=True) if title_el else ""
+                price = price_el.get_text(strip=True) if price_el else None
+                href  = "https://offerup.com" + link_el["href"] if link_el else url
+                year_m = re.search(r"(20\d\d|19\d\d)", title)
+                year = year_m.group(1) if year_m else YEAR_MIN
+                before = len(results)
+                add("OfferUp", title, price, None, year, "Private Seller", "", href)
+                if len(results) > before: count += 1
+            except Exception:
+                pass
+
+    print(f"  OfferUp: {count} listings", flush=True)
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# ── Facebook Marketplace (public JSON endpoint) ──────────────────────────────
+def search_facebook():
+    """
+    Facebook requires auth for full results. We attempt the public
+    marketplace search which sometimes returns listings for logged-out users.
+    """
+    print("  Searching Facebook Marketplace...", flush=True)
+    params = {
+        "query":          f"{MAKE} {MODEL}",
+        "latitude":       "",   # Would need geocoding; skip for now
+        "longitude":      "",
+        "radius":         str(RADIUS * 1609),  # metres
+        "price_upper":    MAX_PRICE or "",
+        "daysSinceListed": "30",
+        "sortBy":         "price_ascend",
+    }
+    url = f"https://www.facebook.com/marketplace/search/?{urllib.parse.urlencode({k:v for k,v in params.items() if v})}"
+    html = fetch(url)
+    count = 0
+
+    if html:
+        soup = BeautifulSoup(html, "lxml")
+        # FB embeds listings in JSON inside script tags
+        for script in soup.find_all("script", type="application/json"):
+            try:
+                data = json.loads(script.string or "")
+                text = json.dumps(data)
+                # Look for price + title patterns
+                titles  = re.findall(r'"name"\s*:\s*"([^"]{5,60})"', text)
+                prices  = re.findall(r'"amount"\s*:\s*"(\d+)"', text)
+                for i, title in enumerate(titles[:20]):
+                    if MAKE.lower() in title.lower() or MODEL.lower() in title.lower():
+                        price = prices[i] if i < len(prices) else None
+                        year_m = re.search(r"(20\d\d|19\d\d)", title)
+                        year = year_m.group(1) if year_m else YEAR_MIN
+                        before = len(results)
+                        add("Facebook MP", title, price, None, year, "Private Seller", "", url)
+                        if len(results) > before: count += 1
+            except Exception:
+                pass
+
+    if count == 0:
+        print("  Facebook Marketplace: requires login — adding manual link", flush=True)
+        q = urllib.parse.quote_plus(f"{MAKE} {MODEL}")
+        results.append({
+            "source": "Facebook MP", "title": f"Search {MAKE} {MODEL} — click to open",
+            "price": None, "miles": None, "year": YEAR_MIN,
+            "seller": "Manual search", "location": f"Near {ZIP_CODE}",
+            "url": f"https://www.facebook.com/marketplace/search/?query={q}&sortBy=price_ascend",
+            "score": 9_999_999,
+        })
+    else:
+        print(f"  Facebook Marketplace: {count} listings", flush=True)
+
+
+# ── Google — individual dealer inventory pages ───────────────────────────────
+def search_dealer_sites():
+    """
+    Use Google to surface individual dealer inventory pages that never
+    appear on aggregator sites. Targets common dealer CMS platforms.
+    """
+    print("  Searching dealer sites via Google...", flush=True)
+
+    year_range = f"{YEAR_MIN}" if YEAR_MIN == YEAR_MAX else f"{YEAR_MIN}..{YEAR_MAX}"
+    price_part = f"under ${int(MAX_PRICE):,}" if MAX_PRICE else ""
+    trim_part  = TRIM_FILTER[0] if TRIM_FILTER else ""
+
+    query = (
+        f"{year_range} {MAKE} {MODEL} {trim_part} used {price_part} "
+        f"near {ZIP_CODE} "
+        f"(site:dealer.com OR site:dealerfire.com OR site:dealerinspire.com "
+        f"OR site:vin.li OR site:cdk.com OR inurl:inventory OR inurl:used-cars)"
+    )
+
+    url = f"https://www.google.com/search?q={urllib.parse.quote_plus(query)}&num=20"
+    html = fetch(url)
+    if not html:
+        print("  Dealer sites (Google): no response", flush=True)
+        return
+
+    soup = BeautifulSoup(html, "lxml")
+    count = 0
+
+    for result in soup.select(".g, div[data-sokoban-container]"):
+        try:
+            title_el = result.select_one("h3")
+            link_el  = result.select_one("a[href]")
+            desc_el  = result.select_one(".VwiC3b, span.st")
+
+            title = title_el.get_text(strip=True) if title_el else ""
+            desc  = desc_el.get_text(strip=True) if desc_el else ""
+            href  = link_el["href"] if link_el else ""
+
+            if not title or not href or href.startswith("/search"): continue
+            if not any(kw in title.lower() or kw in desc.lower()
+                       for kw in [MAKE.lower(), MODEL.lower()]): continue
+
+            # Extract price from snippet
+            price_m = re.search(r"\$\s*([\d,]+)", desc)
+            price = price_m.group(1) if price_m else None
+
+            miles_m = re.search(r"([\d,]+)\s*(?:miles?|mi\.?)", desc, re.I)
+            miles = miles_m.group(1) if miles_m else None
+
+            year_m = re.search(r"(20\d\d|19\d\d)", title + " " + desc)
+            year = year_m.group(1) if year_m else YEAR_MIN
+
+            # Get domain as seller name
+            domain_m = re.search(r"https?://(?:www\.)?([^/]+)", href)
+            seller = domain_m.group(1) if domain_m else "Dealer"
+
+            before = len(results)
+            add("Dealer Site", title, price, miles, year, seller, "", href)
+            if len(results) > before: count += 1
+        except Exception:
+            pass
+
+    print(f"  Dealer sites (Google): {count} listings", flush=True)
+
+
+# ── Deduplicate & rank ────────────────────────────────────────────────────────
+def rank(raw):
+    seen, out = set(), []
+    for r in raw:
+        key = f"{r['title'][:30]}|{r['price']}|{r['miles']}"
+        if key not in seen:
+            seen.add(key)
+            out.append(r)
+    return sorted(out, key=lambda r: (r["score"] >= 9_000_000, r["score"]))
+
+
+# ── Output ────────────────────────────────────────────────────────────────────
+def print_results(ranked):
+    print(f"\n{'='*70}")
+    print(f"RESULTS: {len(ranked)} listings  |  sorted by best value (price + miles)")
+    print(f"{'='*70}")
+
+    priced = [r for r in ranked if r["score"] < 9_000_000]
+    unpriced = [r for r in ranked if r["score"] >= 9_000_000]
+
+    if not priced:
+        print("\nNo priced listings found. Try broadening year range, radius, or price.")
+    else:
+        print(f"\n{'#':<4} {'Source':<14} {'Title':<52} {'Yr':<5} {'Price':>9} {'Miles':>9}  Location")
+        print("-" * 105)
+        for i, r in enumerate(priced[:30], 1):
+            ps = f"${r['price']:,}" if r['price'] else "N/A"
+            ms = f"{r['miles']:,}mi" if r['miles'] else "N/A"
+            print(f"{i:<4} {r['source']:<14} {r['title']:<52} {r['year']:<5} {ps:>9} {ms:>9}  {r['location']}")
+
+        print(f"\n{'='*70}")
+        print("TOP 3 PICKS  (lowest combined price + mileage score)")
+        print(f"{'='*70}")
+        for i, r in enumerate(priced[:3], 1):
+            ps = f"${r['price']:,}" if r['price'] else "N/A"
+            ms = f"{r['miles']:,} miles" if r['miles'] else "unknown miles"
+            print(f"\n#{i}: {r['title']}")
+            print(f"    {ps}  ·  {ms}  ·  {r['source']}  ·  {r['seller']}")
+            print(f"    {r['location']}")
+            print(f"    {r['url']}")
+
+    if unpriced:
+        print(f"\n── Manual search links ──")
+        for r in unpriced:
+            print(f"  {r['source']}: {r['url']}")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     if not MAKE or not MODEL:
-        print("ERROR: CAR_MAKE and CAR_MODEL environment variables are required.")
+        print("ERROR: set CAR_MAKE and CAR_MODEL environment variables.")
+        sys.exit(1)
+    if not ZIP_CODE:
+        print("ERROR: set ZIP_CODE environment variable.")
         sys.exit(1)
 
-    print(f"\nSearching for: {MAKE} {MODEL} ({YEAR_MIN}-{YEAR_MAX})")
-    print(f"Location: {ZIP_CODE}, radius: {RADIUS} miles")
-    if MAX_PRICE:     print(f"Max price: ${int(MAX_PRICE):,}")
-    if MAX_ODOMETER:  print(f"Max odometer: {int(MAX_ODOMETER):,} miles")
-    print("-" * 60)
+    trim_display = ", ".join(TRIM_FILTER) if TRIM_FILTER else "any"
+    print(f"\n{'='*70}")
+    print(f"Searching: {MAKE} {MODEL}  |  {YEAR_MIN}–{YEAR_MAX}  |  trim: {trim_display}")
+    print(f"ZIP: {ZIP_CODE}  |  radius: {RADIUS}mi  |  "
+          f"max price: {'$'+MAX_PRICE if MAX_PRICE else 'any'}  |  "
+          f"max miles: {MAX_ODOMETER or 'any'}")
+    print(f"Sources: Craigslist (multi-city), eBay Motors, OfferUp, Facebook MP, Dealer sites")
+    print(f"{'='*70}\n")
 
-    for fn in [search_cargurus, search_cars_com, search_autotrader, search_carmax, search_truecar, search_craigslist]:
+    for fn in [search_craigslist, search_ebay_motors, search_offerup,
+               search_facebook, search_dealer_sites]:
         try:
             fn()
-            time.sleep(0.5)
         except Exception as e:
-            print(f"  Error in {fn.__name__}: {e}", flush=True)
+            print(f"  Error in {fn.__name__}: {e}")
+        time.sleep(0.3)
 
-    add_facebook_link()
-
-    # Deduplicate by URL
-    seen_urls = set()
-    deduped = []
-    for r in results:
-        key = r["url"][:80]
-        if key not in seen_urls:
-            seen_urls.add(key)
-            deduped.append(r)
-
-    # Sort: listings with actual price+miles first, then by score
-    ranked = sorted(deduped, key=lambda r: (r["score"] == 9999999, r["score"]))
-
-    print(f"\n{'='*60}")
-    print(f"RESULTS: {len(ranked)} listings found (sorted by best value)")
-    print(f"{'='*60}")
-
-    if not ranked or all(r["score"] >= 9999998 for r in ranked):
-        print("\nNo priced listings found. Try broadening your search parameters.")
-        print("Direct search links:")
-        for site, url in [
-            ("CarGurus",    f"https://www.cargurus.com/Cars/new/nl/Cars-d448?zip={ZIP_CODE}&distance={RADIUS}&yearMin={YEAR_MIN}&yearMax={YEAR_MAX}&listingTypes=USED"),
-            ("Cars.com",    f"https://www.cars.com/shopping/results/?stock_type=used&makes[]={MAKE.lower()}&zip={ZIP_CODE}&maximum_distance={RADIUS}&year_min={YEAR_MIN}&year_max={YEAR_MAX}&sort=price_low"),
-            ("AutoTrader",  f"https://www.autotrader.com/cars-for-sale/used-cars/{MAKE.upper()}/{MODEL.upper()}?zip={ZIP_CODE}&searchRadius={RADIUS}&startYear={YEAR_MIN}&endYear={YEAR_MAX}&sortBy=priceASC"),
-            ("TrueCar",     f"https://www.truecar.com/used-cars-for-sale/listings/{MAKE.lower()}/{MODEL.lower()}/?zip_code={ZIP_CODE}"),
-            ("CarMax",      f"https://www.carmax.com/cars/{MAKE.lower()}/{MODEL.lower()}"),
-            ("Facebook MP", f"https://www.facebook.com/marketplace/search/?query={quote_plus(MAKE+' '+MODEL)}&sortBy=price_ascend"),
-        ]:
-            print(f"  {site}: {url}")
-        return
-
-    # Print table
-    print(f"\n{'#':<4} {'Source':<15} {'Title':<45} {'Year':<6} {'Price':>10} {'Miles':>10} {'Location':<25}")
-    print("-" * 120)
-    for i, r in enumerate(ranked[:30], 1):
-        price_str = f"${r['price']:,}"  if r['price'] else "N/A"
-        miles_str = f"{r['miles']:,} mi" if r['miles'] else "N/A"
-        print(f"{i:<4} {r['source']:<15} {r['title']:<45} {r['year']:<6} {price_str:>10} {miles_str:>10} {r['location']:<25}")
-
-    print("\n" + "="*60)
-    print("TOP PICKS (best value = low price + low miles)")
-    print("="*60)
-    top = [r for r in ranked if r["score"] < 9999998][:3]
-    for i, r in enumerate(top, 1):
-        price_str = f"${r['price']:,}" if r['price'] else "N/A"
-        miles_str = f"{r['miles']:,} miles" if r['miles'] else "N/A"
-        print(f"\n#{i}: {r['title']}")
-        print(f"    Price: {price_str}  |  Odometer: {miles_str}  |  Source: {r['source']}")
-        print(f"    Location: {r['location']}")
-        print(f"    Link: {r['url']}")
-
-    print("\n" + "-"*60)
-    print("Direct search links for manual browsing:")
-    print(f"  CarGurus:    https://www.cargurus.com/Cars/new/nl/Cars-d448?zip={ZIP_CODE}&distance={RADIUS}&yearMin={YEAR_MIN}&yearMax={YEAR_MAX}&listingTypes=USED")
-    print(f"  Cars.com:    https://www.cars.com/shopping/results/?stock_type=used&makes[]={MAKE.lower()}&zip={ZIP_CODE}&maximum_distance={RADIUS}&year_min={YEAR_MIN}&year_max={YEAR_MAX}&sort=price_low")
-    print(f"  AutoTrader:  https://www.autotrader.com/cars-for-sale/used-cars/{MAKE.upper()}/{MODEL.upper()}?zip={ZIP_CODE}&searchRadius={RADIUS}&startYear={YEAR_MIN}&endYear={YEAR_MAX}&sortBy=priceASC")
-    print(f"  TrueCar:     https://www.truecar.com/used-cars-for-sale/listings/{MAKE.lower()}/{MODEL.lower()}/?zip_code={ZIP_CODE}")
-    print(f"  CarMax:      https://www.carmax.com/cars/{MAKE.lower()}/{MODEL.lower()}")
-    print(f"  Facebook MP: https://www.facebook.com/marketplace/search/?query={quote_plus(MAKE+' '+MODEL)}&sortBy=price_ascend")
-    print(f"  Craigslist:  https://www.craigslist.org/search/cta?auto_make_model={quote_plus(MAKE+' '+MODEL)}&postal={ZIP_CODE}&search_distance={RADIUS}&sort=priceasc")
+    print_results(rank(results))
 
 
 if __name__ == "__main__":
     main()
 ```
-
----
-
-## How Claude should invoke this skill
-
-1. Parse the user's request to extract make, model, year range, zip, radius, max price, max odometer.
-2. If zip is missing, ask the user for it — it is required.
-3. Set defaults: year range = last 7 years, radius = 100 miles.
-4. Write the Python script to `/tmp/car_search.py`.
-5. Run the script with env vars set.
-6. Parse stdout and present the ranked table plus top picks in a clean markdown response.
-7. Always include the direct search links at the bottom so the user can manually browse too.
