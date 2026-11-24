@@ -113,3 +113,77 @@ a.work-item:hover .work-title { text-decoration: underline; text-underline-offse
 .site-footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .site-footer nav { display: flex; gap: 24px; }
 .site-footer a { text-decoration: none; }
+
+/* ===== Interactions (see js/site.js) ===== */
+
+/* 1. Fade-in on scroll. Only active when the head snippet added .js-motion
+   (script running, motion allowed); otherwise everything is simply visible. */
+.js-motion :is(.intro > *, .section-label, .work-list li, .tags, .about > *, .case-head > *,
+  .meta-grid > div, .narrow > *, .case > figure, .grid > figure, .embed, .callout):not(.in) {
+  opacity: 0;
+  transform: translateY(28px);
+}
+.js-motion :is(.intro > *, .section-label, .work-list li, .tags, .about > *, .case-head > *,
+  .meta-grid > div, .narrow > *, .case > figure, .grid > figure, .embed, .callout) {
+  transition: opacity .8s cubic-bezier(.2, .7, .2, 1), transform .8s cubic-bezier(.2, .7, .2, 1);
+}
+
+/* 2. Home page project rows */
+a.work-item { transition: padding-left .35s cubic-bezier(.2, .7, .2, 1); }
+a.work-item .work-title::after {
+  content: "→";
+  display: inline-block;
+  margin-left: .45em;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity .3s ease, transform .35s cubic-bezier(.2, .7, .2, 1);
+}
+a.work-item:hover, a.work-item:focus-visible { padding-left: 12px; }
+a.work-item:hover .work-title, a.work-item:focus-visible .work-title { text-decoration: none; }
+a.work-item:hover .work-title::after, a.work-item:focus-visible .work-title::after { opacity: 1; transform: none; }
+.work-list li { transition: background-color .3s ease; }
+.work-list li:has(a.work-item:hover) { background: rgba(35, 51, 48, .035); }
+
+/* 3. Reading progress bar */
+.progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 50;
+  background: var(--ink);
+  transform: scaleX(0); transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+/* 4. Full-screen images */
+.zoomable { cursor: zoom-in; }
+a.zoomable:hover { opacity: 1; }
+.case figure img { transition: transform .5s cubic-bezier(.2, .7, .2, 1), box-shadow .5s ease; }
+.case figure .zoomable:hover img, .case figure img.zoomable:hover {
+  transform: scale(1.01);
+  box-shadow: 0 18px 40px -24px rgba(0, 0, 0, .35);
+}
+.lightbox {
+  width: 100vw; height: 100vh; max-width: none; max-height: none;
+  margin: 0; padding: 56px 72px; border: 0;
+  background: rgba(20, 24, 23, .94);
+  display: none; align-items: center; justify-content: center;
+}
+.lightbox[open] { display: flex; animation: lb-in .25s ease; }
+.lightbox::backdrop { background: transparent; }
+.lightbox img {
+  max-width: 100%; max-height: 100%; width: auto; height: auto;
+  object-fit: contain; cursor: zoom-out; border-radius: 2px;
+}
+.lightbox button {
+  position: absolute; border: 0; background: none; color: #fff; cursor: pointer;
+  font: 300 44px/1 var(--font); padding: 8px 14px; opacity: .75;
+}
+.lightbox button:hover, .lightbox button:focus-visible { opacity: 1; }
+.lb-close { top: 8px; right: 12px; }
+.lb-prev { left: 8px; top: 50%; transform: translateY(-50%); }
+.lb-next { right: 8px; top: 50%; transform: translateY(-50%); }
+.lb-count { position: absolute; bottom: 14px; left: 0; right: 0; margin: 0; text-align: center; color: rgba(255,255,255,.7); font-size: 14px; letter-spacing: .08em; }
+@media (max-width: 640px) { .lightbox { padding: 56px 12px; } }
+@keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

@@ -13,6 +13,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <script>
+    /* Enable scroll animations only if supported and the visitor allows motion;
+       if site.js fails to load, show everything after 2.5s. */
+    if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("js-motion");
+      setTimeout(function () { if (!window.__motion) document.documentElement.classList.remove("js-motion"); }, 2500);
+    }
+  </script>
+  <script src="/js/site.js" defer></script>
 </head>
 <body>
   <header class="site-header">
