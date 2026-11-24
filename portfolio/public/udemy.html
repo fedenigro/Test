@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Augmenting Account Creation — Fede Nigro</title>
+  <meta name="description" content="Redesigning Udemy's mobile sign in/up flow — a case study by Fede Nigro.">
+  <meta property="og:title" content="Augmenting Account Creation — Fede Nigro">
+  <meta property="og:description" content="Redesigning Udemy's mobile sign in/up flow — a case study by Fede Nigro.">
+  <meta property="og:image" content="/img/logo.png">
+  <link rel="icon" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/"><img src="/img/logo.png" alt="Fede Nigro" width="974" height="179"></a>
+      <nav class="nav"><a href="/">Work</a><a href="/about">About</a></nav>
+    </div>
+  </header>
+
+    <main class="wrap">
+    <article class="case">
+      <header class="case-head">
+        <img class="brand-logo" src="/img/udemy/02-image-asset.png" alt="Udemy">
+        <h1 style="margin-top:24px">Augmenting Account Creation</h1>
+        <div class="badges">
+          <img src="/img/udemy/03-google-play-badge-1.png" alt="Get it on Google Play">
+          <img src="/img/udemy/04-download_on_the_app_store_badge_us-uk_135x40.png" alt="Download on the App Store">
+        </div>
+      </header>
+
+      <div class="meta-grid">
+        <div><h4>What</h4><p>Redesign the sign in/up flow to reduce the bounce rate, improve conversion rate and reduce the creation of multiple accounts on an over 14 million user platform.</p></div>
+        <div><h4>Who</h4><p>While I focused on user research, testing and design, I worked along side with a Project Manager, the Android and iOS Developer teams.</p></div>
+        <div><h4>How</h4><p>Competitive and comparative analysis, Usertesting.com on previous design, qualitative research, usability testing on new designs.</p><p>Tools: usertesting.com, leanplum, google analytics, sketch, craigslist</p></div>
+      </div>
+
+      <div class="grid grid-3">
+        <figure><a href="/img/udemy/05-image-asset.png"><img src="/img/udemy/05-image-asset.png" alt="Previous Udemy sign in screen" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/06-iphone6_ob_2.png"><img src="/img/udemy/06-iphone6_ob_2.png" alt="Onboarding screen" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/07-iphone6_ob_1.png"><img src="/img/udemy/07-iphone6_ob_1.png" alt="Onboarding screen" loading="lazy"></a></figure>
+      </div>
+
+      <div class="narrow">
+        <h2>Overview</h2>
+        <p>Udemy’s mobile app was experiencing a bounce rate of 28% upon download. In addition, web first users were mistakenly creating multiple accounts when logging into the app leading to an overwhelming number of support tickets. We had a clear understanding that in order to create a good cross-platform experience users needed to create a Udemy account or be able to login into their existing account without friction.</p>
+
+        <h2>Process</h2>
+        <h3>Research:</h3>
+        <p>I went back and dug up the research on all previous attempts to fix this problem in the past. My first week was spent understanding what was wrong with it and developing hypothesis on what could be better.</p>
+        <h3>Hypothesis:</h3>
+        <p>First time users do not understand the value proposition before creating an account. Returning users often create multiple accounts by mistake due to confusing copy. Lack of error feedback makes it difficult to know when you've made a mistake.</p>
+      </div>
+      <figure><a href="/img/udemy/08-image-asset.png"><img src="/img/udemy/08-image-asset.png" alt="Previous sign in/up flow" loading="lazy"></a></figure>
+
+      <div class="narrow">
+        <h3>Validation:</h3>
+        <p>I conducted user testing on the current design to learn and validate my hypothesis. Talking to our users was helpful, but I felt I was missing part of the story, so I also reached out to the support team in search for more answers. It turns out that they had heard many of the issues I was trying to address from our existing users. This is what I learned from it:</p>
+        <ul>
+          <li>New users did not know what the app was about by just looking at the sign in/splash screen</li>
+          <li>Most wanted to browse or learn more before moving forward</li>
+          <li>Ambiguous copy made users confused about what action to take next</li>
+          <li>As shown in the flow, sign up and sign in processes are similar enough to get users confused as to in which they are.</li>
+        </ul>
+      </div>
+      <figure><a href="/img/udemy/09-image-asset.png"><img src="/img/udemy/09-image-asset.png" alt="Redesigned flow map" loading="lazy"></a></figure>
+
+      <div class="narrow">
+        <h3>Design:</h3>
+        <p>I went ahead and mapped the flow addressing the copy on the buttons, all entry points and separating sign in from sign up in a way that was more clear to understand. I got great internal feedback on it, but also a suggestion to focus on the screens before the signup screen (on-boarding, non existent at that point)</p>
+        <h3>On-boarding Design:</h3>
+        <p>After juggling with at least 15 wireframe versions I picked 3 that captured all the main ideas that I wanted to test. The first one had little information and users were dropped right into the app, the second offered a bit more context and the third really stated the value proposition of the app. All three followed with somewhat similar signin/up flows that were meant to test friction.</p>
+      </div>
+      <div class="grid grid-3">
+        <figure><a href="/img/udemy/10-udemy-su-wf-1.png"><img src="/img/udemy/10-udemy-su-wf-1.png" alt="Onboarding wireframe option 1" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/11-udemy-su-wf-2.png"><img src="/img/udemy/11-udemy-su-wf-2.png" alt="Onboarding wireframe option 2" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/12-udemy-su-wf-3.png"><img src="/img/udemy/12-udemy-su-wf-3.png" alt="Onboarding wireframe option 3" loading="lazy"></a></figure>
+      </div>
+
+      <div class="narrow">
+        <h3>User testing:</h3>
+        <p>With the research team being tied up, I offered to take on the recruiting and research. I recruited 6 candidates that had never heard of Udemy, and the main goal was to evaluate whether or not they would be able to tell me what Udemy was from the first screens and if that created enough value for them to create an account (addressing the bounce and conversion rates). This is what I learned:</p>
+        <ul>
+          <li>Provide little information and users will drop when confronted with signup as the only option</li>
+          <li>If users get dropped right in the app, they will feel overwhelmed and likely drop</li>
+          <li>Giving a snapshot of what to expect is most successful; however, actual UI screenshots tend to confuse the user rather than aid their onboarding. Users are more responsive to abstract, easier to digest information</li>
+          <li>Most users don't differentiate sign in from sign up</li>
+          <li>100% of the users I tested avoided signing up with social media</li>
+        </ul>
+        <h3>Design:</h3>
+        <p>This is one of the first designs I presented. The intention was to combine some brand colors and create a more soothing experience. What I didn't realize was that while this was more in line with current trends, it didn't fit the product as a whole. On the second solution I opted for a slight gradient, combining the brand green with another shade used specifically on mobile. The result was a much cleaner UI that did not feel completely disconnected from the product.</p>
+      </div>
+      <div class="grid grid-3">
+        <figure><a href="/img/udemy/13-udemy-sup-1.png"><img src="/img/udemy/13-udemy-sup-1.png" alt="Visual design exploration 1" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/14-udemy-sup-2.png"><img src="/img/udemy/14-udemy-sup-2.png" alt="Visual design exploration 2" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/15-udemy-sup-3.png"><img src="/img/udemy/15-udemy-sup-3.png" alt="Visual design exploration 3" loading="lazy"></a></figure>
+      </div>
+
+      <div class="narrow"><h2>The Result</h2></div>
+      <figure><img src="/img/udemy/16-image-asset.gif" alt="Animated walkthrough of the final onboarding" loading="lazy" style="max-width:420px;margin:0 auto"></figure>
+
+      <div class="narrow"><h3>iOS</h3></div>
+      <div class="grid grid-5">
+        <figure><a href="/img/udemy/17-udemy-sup-4.png"><img src="/img/udemy/17-udemy-sup-4.png" alt="iOS screen 1" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/18-udemy-sup-5.png"><img src="/img/udemy/18-udemy-sup-5.png" alt="iOS screen 2" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/19-udemy-sup-6.png"><img src="/img/udemy/19-udemy-sup-6.png" alt="iOS screen 3" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/20-udemy-sup-7.png"><img src="/img/udemy/20-udemy-sup-7.png" alt="iOS screen 4" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/21-udemy-sup-8.png"><img src="/img/udemy/21-udemy-sup-8.png" alt="iOS screen 5" loading="lazy"></a></figure>
+      </div>
+      <div class="narrow"><h3>Android</h3></div>
+      <div class="grid grid-5">
+        <figure><a href="/img/udemy/22-udemy-sup-android-1.png"><img src="/img/udemy/22-udemy-sup-android-1.png" alt="Android screen 1" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/23-udemy-sup-android-2.png"><img src="/img/udemy/23-udemy-sup-android-2.png" alt="Android screen 2" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/24-udemy-sup-android-3.png"><img src="/img/udemy/24-udemy-sup-android-3.png" alt="Android screen 3" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/25-udemy-sup-android-4.png"><img src="/img/udemy/25-udemy-sup-android-4.png" alt="Android screen 4" loading="lazy"></a></figure>
+        <figure><a href="/img/udemy/26-udemy-sup-android-5.png"><img src="/img/udemy/26-udemy-sup-android-5.png" alt="Android screen 5" loading="lazy"></a></figure>
+      </div>
+
+      <nav class="next-case"><a href="/user-management">← Enterprise Team Management</a><a href="/redbooth-freemium-1">Next: Creating a Downgrade Experience →</a></nav>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>© Fede Nigro</span>
+      <nav><a href="https://www.linkedin.com/in/fedenigro">LinkedIn</a><a href="https://medium.com/@fnigro">Medium</a><a href="mailto:fmnigro@gmail.com">Email</a></nav>
+    </div>
+  </footer>
+</body>
+</html>

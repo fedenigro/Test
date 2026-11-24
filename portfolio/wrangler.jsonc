@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fedenigro-portfolio",
+  "compatibility_date": "2026-11-01",
+  // Static site: everything in ./public is served from Cloudflare's edge.
+  // "/about" serves about.html, unknown paths serve 404.html.
+  "assets": {
+    "directory": "./public",
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
