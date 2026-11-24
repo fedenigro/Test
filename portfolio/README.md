@@ -29,6 +29,18 @@ npm run dev        # http://localhost:8787
 
 ## Deploy
 
+Current setup — straight from the Cloudflare API (needs only Python 3):
+
+```bash
+CLOUDFLARE_API_TOKEN=your-token python3 deploy.py
+```
+
+It uploads `public/` into a Workers KV store, uploads `worker/index.js` (the small
+program that serves those files at clean URLs) and attaches fedenigro.com and
+www.fedenigro.com. The token comes from the "Edit Cloudflare Workers" template.
+
+Alternative — Cloudflare's built-in static assets (uses `wrangler.jsonc`).
+
 Option A — from your machine:
 
 ```bash
