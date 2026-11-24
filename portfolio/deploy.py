@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Publish the site to Cloudflare using only the Cloudflare API (no wrangler).
 
-  CLOUDFLARE_API_TOKEN=... python3 deploy.py
+  CLOUDFLARE_API_TOKEN=... python3 deploy.py            # live: fedenigro.com
+  CLOUDFLARE_API_TOKEN=... python3 deploy.py --preview  # preview.fedenigro.com
 
 Uploads public/ into a Workers KV namespace, uploads worker/index.js as the
 Worker that serves it, and attaches fedenigro.com + www.fedenigro.com.
@@ -12,10 +13,11 @@ import base64, json, os, sys, uuid, urllib.request, urllib.error
 
 ACCOUNT = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "e514de0ba6f87affbae855c5d383de3e")
 TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN") or sys.exit("Set CLOUDFLARE_API_TOKEN")
-WORKER = "fedenigro-portfolio"
-KV_TITLE = "fedenigro-portfolio-assets"
+PREVIEW = "--preview" in sys.argv
+WORKER = "fedenigro-portfolio-preview" if PREVIEW else "fedenigro-portfolio"
+KV_TITLE = WORKER + "-assets"
 ZONE = "fedenigro.com"
-HOSTNAMES = ["fedenigro.com", "www.fedenigro.com"]
+HOSTNAMES = ["preview.fedenigro.com"] if PREVIEW else ["fedenigro.com", "www.fedenigro.com"]
 HERE = os.path.dirname(os.path.abspath(__file__))
 PUBLIC = os.path.join(HERE, "public")
 API = "https://api.cloudflare.com/client/v4"
@@ -79,7 +81,8 @@ def upload_files(ns):
 def upload_worker(ns):
     boundary = uuid.uuid4().hex
     meta = {"main_module": "index.js", "compatibility_date": "2026-11-01",
-            "bindings": [{"type": "kv_namespace", "name": "ASSETS", "namespace_id": ns}]}
+            "bindings": [{"type": "kv_namespace", "name": "ASSETS", "namespace_id": ns},
+                         {"type": "plain_text", "name": "PREVIEW", "text": "1" if PREVIEW else ""}]}
     code = open(os.path.join(HERE, "worker", "index.js"), "rb").read()
     parts = [
         (f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\n'
@@ -108,4 +111,4 @@ if __name__ == "__main__":
         print("4/4 Domains skipped")
     else:
         print("4/4 Domains"); attach_domains()
-    print(f"Done: {n} files published.")
+    print(f"Done: {n} files published to https://{HOSTNAMES[0]}")

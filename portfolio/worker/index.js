@@ -12,7 +12,7 @@ export default {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method not allowed", { status: 405 });
     }
-    if (url.hostname.startsWith("www.")) {
+    if (url.hostname.startsWith("www.") && !env.PREVIEW) {
       url.hostname = url.hostname.slice(4);
       return Response.redirect(url.toString(), 301);
     }
@@ -40,7 +40,10 @@ export default {
       status,
       headers: {
         "content-type": TYPES[ext] || "application/octet-stream",
-        "cache-control": ext === "html" ? "public, max-age=300" : "public, max-age=86400",
+        "cache-control": env.PREVIEW ? "no-store"
+          : ext === "html" ? "public, max-age=300" : "public, max-age=86400",
+        // keep the preview out of search engines
+        ...(env.PREVIEW ? { "x-robots-tag": "noindex, nofollow" } : {}),
       },
     });
   },
