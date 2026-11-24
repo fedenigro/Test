@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Browsing Experience — Fede Nigro</title>
+  <meta name="description" content="Redesigning Skillshare's project pages to empower students and teachers to engage with each other — a case study by Fede Nigro.">
+  <meta property="og:title" content="Project Browsing Experience — Fede Nigro">
+  <meta property="og:description" content="Redesigning Skillshare's project pages to empower students and teachers to engage with each other — a case study by Fede Nigro.">
+  <meta property="og:image" content="/img/logo.png">
+  <link rel="icon" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    /* Enable scroll animations only if supported and the visitor allows motion;
+       if site.js fails to load, show everything after 2.5s. */
+    if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("js-motion");
+      setTimeout(function () { if (!window.__motion) document.documentElement.classList.remove("js-motion"); }, 2500);
+    }
+  </script>
+  <script src="/js/site.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/"><img src="/img/logo.png" alt="Fede Nigro" width="974" height="179"></a>
+      <nav class="nav"><a href="/">Work</a><a href="/about">About</a></nav>
+    </div>
+  </header>
+
+    <main class="wrap">
+    <article class="case">
+      <header class="case-head">
+        <h1>Project Browsing Experience</h1>
+      </header>
+      <figure class="hero"><img src="/img/project-modal/02-image-5.jpg" alt="Skillshare project modal" width="1500"></figure>
+
+      <div class="narrow">
+        <h2>Overview</h2>
+        <p>At Skillshare we believe that the best way of acquiring a new skill is to learn by doing. The concept of completing a project on Skillshare’s classes has been around since the company was founded and they provide a platform for students to practice, share and get feedback on their work.</p>
+        <p>What was never really clear was the underlying cause of why students didn’t use this feature as much as it was originally intended.</p>
+        <p>During the first half of 2019, I led the redesign of project pages to empower students and teachers to engage with each other.</p>
+
+        <h2>Problems</h2>
+        <h3>Low Engagement</h3>
+        <p>When clicking on a project preview, the project details page loads on that same tab. The page takes a long time to load and to view the next project, users must return to the previous page to select the next one in line resulting in low project views.</p>
+      </div>
+      <figure><img src="/img/project-modal/03-viewing---desktop-copy.jpg" alt="Old project details page" loading="lazy"></figure>
+      <div class="narrow">
+        <h3>Disconnected community</h3>
+        <p>The comments section is placed at the bottom of the project details page. Not a lot of users get this far, and for those that do, it’s hard for them to read or reply to the comments as it’s disconnected from the artwork. This is especially problematic for teachers giving feedback to students.</p>
+      </div>
+      <figure><img src="/img/project-modal/04-viewing---desktop-comments.jpg" alt="Old comments section at the bottom of the page" loading="lazy"></figure>
+
+      <div class="narrow">
+        <h2>Learnings</h2>
+        <p>Going through some rounds of calls to validate our assumptions and better understand student needs unearthed some insights that helped us align on the solution.</p>
+        <h3>Teachers come first</h3>
+        <p>Students really value the feedback of a teacher and feel less anxious when sharing with them over other students. While they appreciate other student’s feedback, ultimately, hearing from the teacher is why they are here.</p>
+        <h3>One comment is worth a thousand likes</h3>
+        <p>In our platform, getting feedback or a comment on your work goes a long way. Not only it encourages the action of posting to be repeated but it also opens the door for the person receiving a comment to feel encouraged to return the favor.</p>
+        <h3>Beginner students are more likely to post work over advanced students</h3>
+        <p>Those starting out are hungry for feedback and welcome the practice projects, while advanced students will apply what they learned directly to their personal/professional work.</p>
+        <h3>Projects = Quality</h3>
+        <p>For students, projects serve as a quality indicator of a class, Looking at other student projects allows them to understand the possible outcome of a class and it helps identify the right class to take.</p>
+
+        <h2>Solution</h2>
+        <p>Before we started, we knew that it would be our first project fully built on React and that this had to pave the way for the rest of the platform to transition smoothly. Naturally, we took an iterative approach. These are the first things that shipped.</p>
+        <h3>User control and Freedom</h3>
+        <p>Right away we knew how painstakingly it was to load a project, and if that project was not a great example of what you were looking for… I guess see you never…</p>
+        <p>Adopting a modal view to check projects gave users control to move onto the next project or quickly close it and find a better one from the gallery.</p>
+      </div>
+      <figure><img src="/img/project-modal/05-image-6.png" alt="New project modal view" loading="lazy"></figure>
+      <div class="narrow">
+        <h3>Recognition rather than recall</h3>
+        <p>To leave a comment before, you had to rely on memory. For teachers that review a handful of projects per day, this became an unwieldy chore.</p>
+        <p>Surfacing comments next to the student’s artwork, allows both students and teachers to reference the visual when reading or commenting on the project. Furthermore, the right panel acts as the control center for project actions, this is where the poster information, project’s stats, liking action, and class information while the left section is purely for consumption.</p>
+      </div>
+      <figure><img src="/img/project-modal/06-image-7.png" alt="Comments next to the artwork in the right panel" loading="lazy"></figure>
+
+      <div class="narrow">
+        <h2>Next Steps</h2>
+        <p>Because the project was a huge undertaking, there were features that were validated and we knew could make a difference but we were not able to include in the MVP.</p>
+        <ul>
+          <li>Ability to carousel through projects</li>
+          <li>Reducing the anxiety around posting projects by improving the project creator</li>
+          <li>Allowing WIP and Draft Projects (case study coming soon)</li>
+          <li>Ability to request and give feedback to students</li>
+        </ul>
+      </div>
+      <div class="callout">
+        <p>Go on, check out some projects</p>
+        <p><a href="https://www.skillshare.com/projects?category=all&amp;sort=votes&amp;time=all-time">skillshare.com/projects</a></p>
+      </div>
+
+      <nav class="next-case"><a href="/new-page-1">← Explicit Signal Collection</a><a href="/user-management">Next: Enterprise Team Management →</a></nav>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>© Fede Nigro</span>
+      <nav><a href="https://www.linkedin.com/in/fedenigro">LinkedIn</a><a href="https://medium.com/@fnigro">Medium</a><a href="mailto:fmnigro@gmail.com">Email</a></nav>
+    </div>
+  </footer>
+</body>
+</html>
